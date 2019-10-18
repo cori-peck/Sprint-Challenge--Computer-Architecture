@@ -66,7 +66,7 @@ class CPU:
         self.reg[SP] += 1
         self.pc += bit_operands + 1
 
-    def handleHLT(self):
+    def handleHLT(self, ir, op1, op2):
         self.running = False
 
     def handleCMP(self, ir, reg1, reg2):
@@ -91,6 +91,9 @@ class CPU:
             self.pc = self.reg[regloc]
         else:
             self.pc += ((ir & 0b11000000) >> 6) + 1
+
+    def bit_operands(self, ir):
+        return (ir & 0b11000000) >> 6
 
     def load(self):
         """Load a program into memory."""
@@ -173,7 +176,7 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            #self.fl,
+            self.fl,
             #self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
