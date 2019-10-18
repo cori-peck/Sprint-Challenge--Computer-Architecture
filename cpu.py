@@ -2,6 +2,15 @@
 
 import sys
 
+SP = 7   #Stack pointer is register R7
+LDI = 0b10000010
+PRN = 0b01000111
+MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+HLT = 0b00000001
+CMP = 0b10100111
+
 class CPU:
     """Main CPU class."""
 
@@ -10,6 +19,53 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0] * 8
         self.pc = 0
+        self.fl = 0
+        self.reg[SP] = 244
+        self.running = False
+        self.branchtable = {
+            LDI: self.handleLDI,
+            PRN: self.handlePRN,
+            MUL: self.handleMUL,
+            PUSH: self.handlePUSH,
+            POP: self.handlePOP,
+            HLT: self.handleHLT,
+            CMP: self.handleCMP
+        }
+
+    def handleLDI(self, ir, reg, val):
+        bit_operands = (ir & 0b11000000) >> 6
+        self.reg[reg] = val
+        self.pc += bit_operands + 1
+
+    def handlePRN(self, ir, regloc, operand):
+        bit_operands = (ir & 0b11000000) >> 6
+        print(self.reg[regloc])
+        self.pc += bit_operands + 1
+
+    def handleMUL(self, ir, reg1, reg2):
+        bit_operands = (ir & 0b11000000) >> 6
+        self.alu("MUL", reg1, reg2)
+        self.pc += bit_operands + 1
+
+    def handlePUSH(self, ir, regloc, operand):
+        bit_operands = (ir & 0b11000000) >> 6  #right shift operator - shift to right and append 1 at the end
+        self.reg[SP] -=1
+        self.ram[self.reg[SP]] = self.reg[regloc]
+        self.pc += bit_operands + 1
+
+    def handlePOP(self, ir, regloc, operand):
+        bit_operands = (ir & 0b11000000) >> 6
+        self.reg[regloc] = self.ram[self.reg[SP]]
+        self.reg[SP] += 1
+        self.pc += bit_operands + 1
+
+    def handleHLT(self):
+        self.running = False
+
+    def handleCMP(self, ir, reg1, reg2):
+        #instruction handles by the ALU
+        self.alu("CMP", reg1, reg2)
+        self.pc += ((ir & 0b11000000) >> 6) + 1
 
     def load(self):
         """Load a program into memory."""
@@ -59,9 +115,28 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        if op == "MUL":
+        elif op == "MUL":
             product = self.reg[reg_a] * self.reg[reg_b]
             self.reg[reg_a] = product
+        elif op == "CMP":
+            if self.reg[reg_a] == self.reg[reg_b]:
+                #if they are equal, set the Equal E flag to 1 otherwise set it to 0
+                self.fl = (self.fl | 0b00000001)
+            else:
+                self.fl = (self.fl & 0b11111110)
+
+            if self.reg[reg_a] < self.reg[reg_b]:
+                #if registerA is < registerB, set the less-than L flag to 1 otherwise set to 0
+                self.fl = (self.fl | 0b00000100)
+            else:
+                self.fl(self.fl & 0b11111011)
+
+            if self.reg[reg_a] > self.reg[reg_b]:
+                #if registerA is > registerB, set the greater-than G flag to 1 otherwise set it to 0
+                self.fl = (self.fl | 0b00000010)
+            else:
+                self.fl = (self.fl & 0b11111101)
+
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -96,32 +171,19 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        running = True
+        self.running = True
         #read the memory address that's stored in register `PC`
         #store that result in `IR`(Instruction Register), can be a local variable
-        while running:
+        while self.running:
             ir = self.ram[self.pc]
             #Using `ram_read()`,read the bytes at `PC+1` and `PC+2` from RAM into variables
             #`operand_a` and`operand_b` in case the instruction needs them.
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
-            #depending on the value of the opcode, perform the actions needed for the instruction per the LS-8 spec
-            #exit the loop if a `HLT` instruction is encountered
-            if ir == 0b00000001:
-                self.pc += 1
-                running = False
-            #LDI
-            elif ir == 0b10000010:
-                self.reg[operand_a] = operand_b
-                self.pc += 3
-            #PRN Print numeric value stored in the given register (operand_a)
-            elif ir == 0b01000111:
-                print(self.reg[operand_a])
-                self.pc += 2
-            #MUL send to self.alu and multiply th evalues in the two registers
-            elif ir == 0b10100010:
-                self.alu("MUL", operand_a, operand_b)
-                self.pc += 3
-            else:
+
+            try:
+                self.branchtable[ir](ir, operand_a, operand_b)
+                
+            except:
                 print(f"Unknown instruction: {ir}")
                 sys.exit(1)
