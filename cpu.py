@@ -10,6 +10,10 @@ PUSH = 0b01000101
 POP = 0b01000110
 HLT = 0b00000001
 CMP = 0b10100111
+JMP = 0b01010100
+JEQ = 0b01010101
+JNE = 0b01010110
+
 
 class CPU:
     """Main CPU class."""
@@ -29,7 +33,10 @@ class CPU:
             PUSH: self.handlePUSH,
             POP: self.handlePOP,
             HLT: self.handleHLT,
-            CMP: self.handleCMP
+            CMP: self.handleCMP,
+            JMP: self.handleJMP,
+            JEQ: self.handleJEQ,
+            JNE: self.handleJNE
         }
 
     def handleLDI(self, ir, reg, val):
@@ -66,6 +73,24 @@ class CPU:
         #instruction handles by the ALU
         self.alu("CMP", reg1, reg2)
         self.pc += ((ir & 0b11000000) >> 6) + 1
+        
+    def handleJMP(self, ir, regloc, op2):
+        #Set the PC to the address stored in the given register
+        self.pc = self.reg[regloc]
+
+    def handleJEQ(self, ir, regloc, op2):
+        #If equal flag is set (true), jump to the address stored in the given register
+        if (self.fl & 0b00000001) == 1:
+            self.pc = self.reg[regloc]
+        else:
+            self.pc += ((ir & 0b11000000) >> 6) + 1
+
+    def handleJNE(self, ir, regloc, op2):
+        #If E flag is clear (false, 0), jump to the address stored in the given register
+        if (self.fl & 0b00000001) == 0:
+            self.pc = self.reg[regloc]
+        else:
+            self.pc += ((ir & 0b11000000) >> 6) + 1
 
     def load(self):
         """Load a program into memory."""
