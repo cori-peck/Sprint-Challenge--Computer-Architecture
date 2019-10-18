@@ -10,10 +10,6 @@ PUSH = 0b01000101
 POP = 0b01000110
 HLT = 0b00000001
 CMP = 0b10100111
-JMP = 0b01010100
-JEQ = 0b01010101
-JNE = 0b01010110
-
 
 class CPU:
     """Main CPU class."""
@@ -33,10 +29,7 @@ class CPU:
             PUSH: self.handlePUSH,
             POP: self.handlePOP,
             HLT: self.handleHLT,
-            CMP: self.handleCMP,
-            JMP: self.handleJMP,
-            JEQ: self.handleJEQ,
-            JNE: self.handleJNE
+            CMP: self.handleCMP
         }
 
     def handleLDI(self, ir, reg, val):
@@ -66,34 +59,14 @@ class CPU:
         self.reg[SP] += 1
         self.pc += bit_operands + 1
 
-    def handleHLT(self, ir, op1, op2):
+    def handleHLT(self):
         self.running = False
 
     def handleCMP(self, ir, reg1, reg2):
+        bit_operands = (ir & 0b11000000) >> 6
         #instruction handles by the ALU
         self.alu("CMP", reg1, reg2)
-        self.pc += ((ir & 0b11000000) >> 6) + 1
-        
-    def handleJMP(self, ir, regloc, op2):
-        #Set the PC to the address stored in the given register
-        self.pc = self.reg[regloc]
-
-    def handleJEQ(self, ir, regloc, op2):
-        #If equal flag is set (true), jump to the address stored in the given register
-        if (self.fl & 0b00000001) == 1:
-            self.pc = self.reg[regloc]
-        else:
-            self.pc += ((ir & 0b11000000) >> 6) + 1
-
-    def handleJNE(self, ir, regloc, op2):
-        #If E flag is clear (false, 0), jump to the address stored in the given register
-        if (self.fl & 0b00000001) == 0:
-            self.pc = self.reg[regloc]
-        else:
-            self.pc += ((ir & 0b11000000) >> 6) + 1
-
-    def bit_operands(self, ir):
-        return (ir & 0b11000000) >> 6
+        self.pc += bit_operands + 1
 
     def load(self):
         """Load a program into memory."""
@@ -143,10 +116,10 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        elif op == "MUL":
+        if op == "MUL":
             product = self.reg[reg_a] * self.reg[reg_b]
             self.reg[reg_a] = product
-        elif op == "CMP":
+        if op == "CMP":
             if self.reg[reg_a] == self.reg[reg_b]:
                 #if they are equal, set the Equal E flag to 1 otherwise set it to 0
                 self.fl = (self.fl | 0b00000001)
@@ -164,7 +137,6 @@ class CPU:
                 self.fl = (self.fl | 0b00000010)
             else:
                 self.fl = (self.fl & 0b11111101)
-
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -176,7 +148,7 @@ class CPU:
 
         print(f"TRACE: %02X | %02X %02X %02X |" % (
             self.pc,
-            self.fl,
+            #self.fl,
             #self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
